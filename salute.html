@@ -70,12 +70,19 @@
   /* ---------- indice ---------- */
   .lead{font-size:14px;color:var(--slate);margin:18px 0 4px;max-width:44ch}
   .decks{list-style:none;margin:14px 0 0;padding:0}
+  .deck-row{display:flex;align-items:stretch;border-bottom:1px solid var(--linea)}
+  .deck-row:first-child{border-top:1px solid var(--linea)}
   .deck{
-    display:block;width:100%;text-align:left;background:none;border:0;
-    border-bottom:1px solid var(--linea);padding:14px 2px;cursor:pointer;font:inherit;color:inherit;
+    display:block;flex:1;min-width:0;text-align:left;background:none;border:0;
+    padding:14px 2px;cursor:pointer;font:inherit;color:inherit;
   }
-  .deck:first-child{border-top:1px solid var(--linea)}
   .deck:disabled{cursor:default}
+  .deck-reset{
+    flex-shrink:0;width:38px;background:none;border:0;border-left:1px solid var(--linea);
+    color:var(--slate);font-size:17px;cursor:pointer;line-height:1;
+  }
+  .deck-reset:hover{background:var(--inchiostro);color:var(--scheda)}
+  .deck-reset:focus-visible{outline:2px solid var(--rosso);outline-offset:-2px}
   .deck-top{display:grid;grid-template-columns:32px 1fr auto;gap:12px;align-items:baseline}
   .deck:hover:not(:disabled) .dname,.deck:focus-visible .dname{color:var(--rosso)}
   .deck:focus-visible{outline:2px solid var(--rosso);outline-offset:3px}
@@ -652,10 +659,14 @@ function disegnaIndice(){
     const c = contaMazo(m, direzione);
     T.tot+=c.tot; T.desc+=c.desc; T.apr+=c.apr; T.proc+=c.proc; T.pend+=c.pend;
     const giro = c.pend + c.proc;
+    const disponibles = m.carte.filter(x=>!isDescartada(x[0]));
+
+    const fila = document.createElement("div");
+    fila.className = "deck-row";
 
     const b = document.createElement("button");
     b.className = "deck";
-    b.disabled = giro === 0;
+    b.disabled = disponibles.length === 0;
     b.innerHTML =
       `<span class="deck-top">
          <span class="dnum">${String(i+1).padStart(2,"0")}</span>
@@ -663,8 +674,39 @@ function disegnaIndice(){
          <span class="dstat ${giro===0?"done":""}">${giro===0?"<b>listo</b>":`<b>${c.pend}</b> pendientes`}</span>
        </span>
        <span class="dbreak">${c.tot} total · <b>${c.desc}</b> descartadas · <b>${c.apr}</b> aprendidas · <b>${c.proc}</b> en proceso · <b>${c.pend}</b> pendientes</span>`;
-    if(giro) b.onclick = ()=>avvia(m.carte.filter(x=>inGiro(x[0],direzione)).map(x=>x[0]), m.nome, i);
-    lista.appendChild(b);
+    if(disponibles.length){
+      b.onclick = ()=>{
+        const ids = giro>0
+          ? m.carte.filter(x=>inGiro(x[0],direzione)).map(x=>x[0])
+          : disponibles.map(x=>x[0]);
+        avvia(ids, m.nome, i);
+      };
+    }
+    fila.appendChild(b);
+
+    if(disponibles.length){
+      const r = document.createElement("button");
+      r.className = "deck-reset";
+      r.title = "Reiniciar mazo";
+      r.setAttribute("aria-label", "Reiniciar mazo");
+      r.textContent = "↺";
+      r.onclick = async (e)=>{
+        e.stopPropagation();
+        const dirTxt = direzione==="es-it" ? "ESP → ITA" : "ITA → ESP";
+        if(!confirm(`¿Reiniciar "${m.nome}"? Todas las que no descartaste vuelven a pendientes, solo en ${dirTxt}. Las descartadas no se tocan.`)) return;
+        m.carte.forEach(x=>{
+          if(isDescartada(x[0])) return;
+          const s = stato[x[0]] ? {...stato[x[0]]} : {};
+          s[direzione] = {dias:0, giorno:null};
+          stato[x[0]] = s;
+        });
+        await salva();
+        disegnaIndice();
+      };
+      fila.appendChild(r);
+    }
+
+    lista.appendChild(fila);
   });
 
   $("#t-total").textContent = T.tot;
